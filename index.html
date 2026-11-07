@@ -2,29 +2,30 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Fintech Posts DApp</title>
+    <title>Fintech Media DApp</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f4f4f9; }
-        .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card { background: white; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); word-break: break-all; }
         input, button { padding: 10px; margin: 5px 0; font-size: 16px; }
         button { cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
         button:hover { background: #0056b3; }
         .delete-btn { background: #dc3545; }
         .delete-btn:hover { background: #c82333; }
+        .media-preview { max-width: 100%; display: block; border-radius: 4px; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h1>Децентралізований Блог (Fintech)</h1>
+    <h1>Децентралізована медіа-платформа (Fintech)</h1>
     
     <div class="card">
-        <h3>Створити новий пост</h3>
-        <input type="text" id="postContent" placeholder="Введіть текст поста..." style="width: 80%;">
+        <h3>Додати новий об'єкт (Media / Пост)</h3>
+        <input type="text" id="postContent" placeholder="Введіть текст або посилання на зображення..." style="width: 80%;">
         <br>
-        <button id="createBtn">Опублікувати</button>
+        <button id="createBtn">Додати об'єкт</button>
     </div>
 
-    <h2>Стрічка постів</h2>
-    <div id="postsContainer">Підключення до блокчейну...</div>
+    <h2>Галерея / Стрічка об'єктів</h2>
+    <div id="postsContainer">Завантаження об'єктів...</div>
 
     <script type="module">
         import { ethers } from "https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.min.js";
@@ -38,98 +39,91 @@
             "function posts(uint256) external view returns (uint256 id, address author, string content, uint256 likesCount, bool exists)"
         ];
 
-        let provider;
-        let signer;
-        let contract;
-
         async function init() {
             try {
-                provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-                signer = await provider.getSigner(0);
+                const container = document.getElementById("postsContainer");
+                const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+                const signer = await provider.getSigner(0);
+                const contract = new ethers.Contract(contractAddress, contractABI, signer);
 
-                contract = new ethers.Contract(contractAddress, contractABI, signer);
-                console.log("Успішно підключено до контракту!");
-                await loadPosts();
-            } catch (error) {
-                console.error("Помилка ініціалізації:", error);
-                document.getElementById("postsContainer").innerText = "Помилка підключення до блокчейну. Переконайся, що нода запущена (`npx hardhat node`).";
-            }
-        }
-
-        async function loadPosts() {
-            const container = document.getElementById("postsContainer");
-            container.innerHTML = "Завантаження...";
-
-            try {
-                let html = "";
-                let i = 0;
-                while (true) {
-                    try {
-                        const postId = await contract.activePostIds(i);
-                        const post = await contract.posts(postId);
-                        
-                        if (post.exists) {
-                            html += `
-                                <div class="card">
-                                    <p><b>Автор:</b> ${post.author}</p>
-                                    <p>${post.content}</p>
-                                    <p><b>Лайки:</b> ${post.likesCount}</p>
-                                    <button onclick="likePost(${post.id})">Лайк</button>
-                                    <button class="delete-btn" onclick="deletePost(${post.id})">Видалити</button>
-                                </div>
-                            `;
+                async function loadPosts() {
+                    container.innerHTML = "Завантаження...";
+                    let html = "";
+                    let i = 0;
+                    
+                    while (true) {
+                        try {
+                            const postId = await contract.activePostIds(i);
+                            const post = await contract.posts(postId);
+                            
+                            if (post.exists) {
+                                const isImage = post.content.startsWith("http");
+                                
+                                html += `
+                                    <div class="card">
+                                        <p><b>Автор:</b> ${post.author}</p>
+                                        ${isImage ? `<img src="${post.content}" class="media-preview" alt="Media">` : `<p>${post.content}</p>`}
+                                        <p><b>Лайки:</b> ${post.likesCount}</p>
+                                        <button onclick="window.likeMedia(${post.id})">Лайк</button>
+                                        <button class="delete-btn" onclick="window.deleteMedia(${post.id})">Видалити</button>
+                                    </div>
+                                `;
+                            }
+                            i++;
+                        } catch (e) {
+                            break;
                         }
-                        i++;
-                    } catch (e) {
-                        break;
+                    }
+
+                    container.innerHTML = html || "<p>Об'єктів поки немає.</p>";
+                }
+
+                document.getElementById("createBtn").onclick = async () => {
+                    const content = document.getElementById("postContent").value;
+                    if (!content) return alert("Введіть текст або посилання на зображення!");
+                    try {
+                        container.innerHTML = "Додавання об'єкта у блокчейн...";
+                        const tx = await contract.createPost(content);
+                        await tx.wait();
+                        document.getElementById("postContent").value = "";
+                        await loadPosts();
+                    } catch (err) {
+                        console.error(err);
+                        alert("Помилка створення об'єкта");
+                        await loadPosts();
+                    }
+                };
+
+                window.deleteMedia = async function(id) {
+                    try {
+                        container.innerHTML = "Видалення об'єкта...";
+                        const tx = await contract.deletePost(id);
+                        await tx.wait();
+                        await loadPosts();
+                    } catch (err) {
+                        console.error(err);
+                        alert("Помилка при видаленні!");
+                        await loadPosts();
                     }
                 }
 
-                container.innerHTML = html || "<p>Постів поки немає.</p>";
-            } catch (err) {
-                console.error(err);
-                container.innerText = "Помилка завантаження стрічки.";
-            }
-        }
+                window.likeMedia = async function(id) {
+                    try {
+                        const tx = await contract.toggleLike(id);
+                        await tx.wait();
+                        await loadPosts();
+                    } catch (err) {
+                        console.error(err);
+                    }
+                }
 
-        window.createPost = async function() {
-            const content = document.getElementById("postContent").value;
-            if (!content) return alert("Введіть текст!");
-            
-            try {
-                const tx = await contract.createPost(content);
-                await tx.wait();
-                document.getElementById("postContent").value = "";
                 await loadPosts();
-            } catch (err) {
-                console.error(err);
-                alert("Помилка при створенні поста");
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById("postsContainer").innerText = "Помилка підключення до ноди.";
             }
         }
-
-        window.likePost = async function(id) {
-            try {
-                const tx = id => contract.toggleLike(id);
-                const realTx = await contract.toggleLike(id);
-                await realTx.wait();
-                await loadPosts();
-            } catch (err) {
-                console.error(err);
-            }
-        }
-
-        window.deletePost = async function(id) {
-            try {
-                const tx = await contract.deletePost(id);
-                await tx.wait();
-                await loadPosts();
-            } catch (err) {
-                console.error(err);
-                alert("Ви не маєте прав на видалення цього поста!");
-            }
-        }
-
-        document.getElementById("createBtn").addEventListener("click", window.createPost);
 
         init();
     </script>
