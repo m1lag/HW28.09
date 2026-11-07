@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_34-24fd534522d197a463e53e8e754c192e5e656a87",
+  "solcVersion": "0.8.34",
+  "solcLongVersion": "0.8.34+commit.80d5c536",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.21.2"
+  },
+  "userSourceNameMap": {
+    "contracts/PostManager.sol": "project/contracts/PostManager.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "osaka",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/PostManager.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.20;\r\n\r\ncontract PostManager {\r\n    struct Post {\r\n        uint256 id;\r\n        address author;\r\n        string content;\r\n        uint256 likesCount;\r\n        bool exists;\r\n    }\r\n\r\n    address public owner;\r\n    uint256 private nextPostId;\r\n    \r\n    mapping(uint256 => Post) public posts;\r\n    mapping(uint256 => mapping(address => bool)) public hasLiked;\r\n    uint256[] public activePostIds;\r\n\r\n    event PostCreated(uint256 indexed postId, address indexed author, string content);\r\n    event PostDeleted(uint256 indexed postId, address indexed deletedBy);\r\n    event PostLiked(uint256 indexed postId, address indexed user, bool liked);\r\n\r\n    modifier onlyOwner() {\r\n        require(msg.sender == owner, \"Only owner can call this function\");\r\n        _;\r\n    }\r\n\r\n    constructor() {\r\n        owner = msg.sender;\r\n    }\r\n\r\n    function createPost(string memory _content) external {\r\n        require(bytes(_content).length > 0, \"Content cannot be empty\");\r\n        uint256 postId = nextPostId++;\r\n        \r\n        posts[postId] = Post({\r\n            id: postId,\r\n            author: msg.sender,\r\n            content: _content,\r\n            likesCount: 0,\r\n            exists: true\r\n        });\r\n\r\n        activePostIds.push(postId);\r\n        emit PostCreated(postId, msg.sender, _content);\r\n    }\r\n\r\n    function deletePost(uint256 _postId) external {\r\n        require(posts[_postId].exists, \"Post does not exist\");\r\n        require(\r\n            msg.sender == posts[_postId].author || msg.sender == owner, \r\n            \"Not authorized to delete this post\"\r\n        );\r\n\r\n        delete posts[_postId];\r\n        _removeActivePostId(_postId);\r\n        emit PostDeleted(_postId, msg.sender);\r\n    }\r\n\r\n    function deleteAllPosts() external onlyOwner {\r\n        for (uint256 i = 0; i < activePostIds.length; i++) {\r\n            delete posts[activePostIds[i]];\r\n        }\r\n        delete activePostIds;\r\n    }\r\n\r\n    function toggleLike(uint256 _postId) external {\r\n        require(posts[_postId].exists, \"Post does not exist\");\r\n\r\n        if (hasLiked[_postId][msg.sender]) {\r\n            hasLiked[_postId][msg.sender] = false;\r\n            posts[_postId].likesCount -= 1;\r\n            emit PostLiked(_postId, msg.sender, false);\r\n        } else {\r\n            hasLiked[_postId][msg.sender] = true;\r\n            posts[_postId].likesCount += 1;\r\n            emit PostLiked(_postId, msg.sender, true);\r\n        }\r\n    }\r\n\r\n    function _removeActivePostId(uint256 _postId) internal {\r\n        for (uint256 i = 0; i < activePostIds.length; i++) {\r\n            if (activePostIds[i] == _postId) {\r\n                activePostIds[i] = activePostIds[activePostIds.length - 1];\r\n                activePostIds.pop();\r\n                break;\r\n            }\r\n        }\r\n    }\r\n}"
+      }
+    }
+  }
+}
